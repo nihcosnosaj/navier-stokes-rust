@@ -1,0 +1,10 @@
+/Users/jasonsochin/dev/rust_dev/navier-stokes-rust/navier_stokes_rust/target/release/deps/libowned_ttf_parser-4d6a7988736efede.rmeta: /Users/jasonsochin/.cargo/registry/src/index.crates.io-6f17d22bba15001f/owned_ttf_parser-0.15.2/src/lib.rs /Users/jasonsochin/.cargo/registry/src/index.crates.io-6f17d22bba15001f/owned_ttf_parser-0.15.2/src/convert.rs /Users/jasonsochin/.cargo/registry/src/index.crates.io-6f17d22bba15001f/owned_ttf_parser-0.15.2/src/owned.rs /Users/jasonsochin/.cargo/registry/src/index.crates.io-6f17d22bba15001f/owned_ttf_parser-0.15.2/src/preparse.rs
+
+/Users/jasonsochin/dev/rust_dev/navier-stokes-rust/navier_stokes_rust/target/release/deps/libowned_ttf_parser-4d6a7988736efede.rlib: /Users/jasonsochin/.cargo/registry/src/index.crates.io-6f17d22bba15001f/owned_ttf_parser-0.15.2/src/lib.rs /Users/jasonsochin/.cargo/registry/src/index.crates.io-6f17d22bba15001f/owned_ttf_parser-0.15.2/src/convert.rs /Users/jasonsochin/.cargo/registry/src/index.crates.io-6f17d22bba15001f/owned_ttf_parser-0.15.2/src/owned.rs /Users/jasonsochin/.cargo/registry/src/index.crates.io-6f17d22bba15001f/owned_ttf_parser-0.15.2/src/preparse.rs
+
+/Users/jasonsochin/dev/rust_dev/navier-stokes-rust/navier_stokes_rust/target/release/deps/owned_ttf_parser-4d6a7988736efede.d: /Users/jasonsochin/.cargo/registry/src/index.crates.io-6f17d22bba15001f/owned_ttf_parser-0.15.2/src/lib.rs /Users/jasonsochin/.cargo/registry/src/index.crates.io-6f17d22bba15001f/owned_ttf_parser-0.15.2/src/convert.rs /Users/jasonsochin/.cargo/registry/src/index.crates.io-6f17d22bba15001f/owned_ttf_parser-0.15.2/src/owned.rs /Users/jasonsochin/.cargo/registry/src/index.crates.io-6f17d22bba15001f/owned_ttf_parser-0.15.2/src/preparse.rs
+
+/Users/jasonsochin/.cargo/registry/src/index.crates.io-6f17d22bba15001f/owned_ttf_parser-0.15.2/src/lib.rs:
+/Users/jasonsochin/.cargo/registry/src/index.crates.io-6f17d22bba15001f/owned_ttf_parser-0.15.2/src/convert.rs:
+/Users/jasonsochin/.cargo/registry/src/index.crates.io-6f17d22bba15001f/owned_ttf_parser-0.15.2/src/owned.rs:
+/Users/jasonsochin/.cargo/registry/src/index.crates.io-6f17d22bba15001f/owned_ttf_parser-0.15.2/src/preparse.rs:
