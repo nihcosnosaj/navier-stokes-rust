@@ -260,6 +260,25 @@ impl FluidGrid {
         }
     }
 
+    fn speed_to_color(speed: f64, max_speed: f64) -> [f32; 4] {
+        // Map speed [0, max_speed] to blue->cyan->green->yellow->red gradient
+        let t = (speed / max_speed).min(1.0).max(0.0);
+        let (r,g,b) = if t < 0.25 {
+            // Blue to Cyan
+            (0.0, t * 4.0, 1.0)
+        } else if t < 0.5 {
+            // Cyan to Green
+            (0.0, 1.0, 1.0 - (t - 0.25) * 4.0)
+        } else if t < 0.75 {
+            // Green to Yellow
+            ((t - 0.5) * 4.0, 1.0, 0.0)
+        } else {
+            // Yellow to Red
+            (1.0, 1.0 - (t - 0.75) * 4.0, 0.0)
+        };
+        [r as f32, g as f32, b as f32, 1.0]
+    }
+
     pub fn run_step(&mut self, dt: f64) {
         self.advect(dt);
         self.solve_pressure(dt);
@@ -291,6 +310,60 @@ impl FluidGrid {
             }
         }
     }
+
+    pub fn add_velocity_at_pixel(&mut self, x: f64, y: f64, dx: f64, dy: f64) {
+        // Convert window pixel coordinates to grid indices
+        let i = (x / self.dx).floor() as isize;
+        let j = (y / self.dx).floor() as isize;
+        // Add velocity to a small area around the mouse
+        for di in -1..=1 {
+            for dj in -1..=1 {
+                let ii = i + di;
+                let jj = j + dj;
+                if ii >= 0 && ii < self.nx as isize && jj >= 0 && jj < self.ny as isize {
+                    let idx_v = self.v_idx(ii as usize, jj as usize);
+                    let idx_u = self.u_idx(ii as usize, jj as usize);
+                    // Scale the added velocity for effect
+                    self.u[idx_u] += dx * 0.1;
+                    self.v[idx_v] += dy * 0.1;
+                }
+            }
+        }
+    }
+
+    pub fn draw_speed(&self, c: &Context, g: &mut G2d) {
+        // 1. Find the maximum speed for normalization
+        let mut max_speed = 1e-5;
+        for j in 1..self.ny - 1 {
+            for i in 1..self.nx - 1 {
+                let x = (i as f64) * self.dx;
+                let y = (j as f64) * self.dx;
+                let (u, v) = self.get_velocity(x + 0.5 * self.dx, y + 0.5 * self.dx);
+                let speed = (u * u + v * v).sqrt();
+                if speed > max_speed {
+                    max_speed = speed;
+                }
+            }
+        }
+
+        // 2. Draw colored rectangles for each cell
+        for j in 1..self.ny - 1 {
+            for i in 1..self.nx - 1 {
+                let x = (i as f64) * self.dx;
+                let y = (j as f64) * self.dx;
+                let (u, v) = self.get_velocity(x + 0.5 * self.dx, y + 0.5 * self.dx);
+                let speed = (u * u + v * v).sqrt();
+                let color = Self::speed_to_color(speed, max_speed);
+
+                rectangle(
+                    color,
+                    [x as f64, y as f64, self.dx, self.dx],
+                    c.transform,
+                    g,
+                );
+            }
+        }
+    }
 }
 
 
@@ -305,7 +378,29 @@ fn main() {
 
     let mut window: PistonWindow = WindowSettings::new("Fluid Sim", [600, 600]).exit_on_esc(true).build().unwrap();
 
+    let mut show_speed = false;
+    let mut mouse_down = false;
+    let mut last_mouse_pos = [0.0, 0.0];
+
     while let Some(event) = window.next() {
+        if let Some(Button::Keyboard(Key::C)) = event.press_args() {
+            show_speed = !show_speed;
+        }
+        if let Some(Button::Mouse(MouseButton::Left)) = event.press_args() {
+            mouse_down = true;
+        }
+        if let Some(Button::Mouse(MouseButton::Left)) = event.release_args() {
+            mouse_down = false;
+        }
+        if let Some([x, y]) = event.mouse_cursor_args() {
+            if mouse_down {
+                // Inject velocity based on mouse movement
+                let dx = x - last_mouse_pos[0];
+                let dy = y - last_mouse_pos[1];
+                grid.add_velocity_at_pixel(x, y, dx, dy);
+            }
+            last_mouse_pos = [x, y];
+        }
         if let Some(_args) = event.update_args() {
             grid.run_step(0.016); // Run one step (for ~60 FPS)
         }
@@ -314,7 +409,11 @@ fn main() {
             clear([0.1, 0.1, 0.1, 1.0], graphics); // Clear to dark gray
 
             // We'll create and call our drawing function here
-            grid.draw_velocities(&context, graphics);
+            if show_speed {
+                grid.draw_speed(&context, graphics);
+            } else {
+                grid.draw_velocities(&context, graphics);
+            }
         });
     }
 
