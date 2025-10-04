@@ -36,6 +36,16 @@ impl FluidGrid {
         }
     }
 
+    // A function to apply velocity decay.
+    pub fn apply_velocity_decay(&mut self, decay: f64) {
+        for u in &mut self.u {
+            *u *= decay;
+        }
+        for v in &mut self.v {
+            *v *= decay;
+        }
+    }
+
     // Convert 2D u-velocity index into 1D vector index.
     fn u_idx(&self, i: usize, j: usize) -> usize {
         j * (self.nx + 1) + i
@@ -284,6 +294,7 @@ impl FluidGrid {
         self.solve_pressure(dt);
         self.project(dt);
         self.set_boundaries();
+        self.apply_velocity_decay(0.93);
     }
 
     pub fn draw_velocities(&self, c: &Context, g: &mut G2d) {
