@@ -13,6 +13,10 @@ Once Rust is installed locally, clone the repo locally and build/run it with:
 
 `cargo run --release` 
 
+Once the window opens, the vector field will be displayed. You can switch to the speed color gradient py pressing 'C' on the keyboard. 
+
+To inject velocity, simply press or drag your mouse anywhere on the field. 
+
 ## Mathematical Foundation
 The simulation uses a classic computational fluid dynamics (CFD) approach. I used the incompressible Navier-Stokes equations which govern the relationship between a fluid's velocity, pressure, density, and viscosity. Since they are a set of complex partial differential equations, we can't really solve for them directly -- we can just use computational methods to find approximate solutions. 
 
