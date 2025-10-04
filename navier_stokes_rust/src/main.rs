@@ -299,24 +299,36 @@ impl FluidGrid {
 
     pub fn draw_velocities(&self, c: &Context, g: &mut G2d) {
         // Bright yellow, 3px thick
-        let line = line::Line::new([1.0, 1.0, 0.0, 1.0], 3.0);
+        // let line = line::Line::new([1.0, 1.0, 0.0, 1.0], 3.0);
         let scale = 2.0; // Larger scaling factor for arrow length
+
+        // Find maximum speed for normalization.
+        let mut max_speed = 1e-5;
+        for j in 1..self.ny - 1 {
+            for i in 1..self.nx - 1 {
+                let x = (i as f64 + 0.5) * self.dx;
+                let y = (j as f64 + 0.5) * self.dx;
+                let (u, v) = self.get_velocity(x, y);
+                let speed = (u * u + v * v).sqrt();
+                if speed > max_speed {
+                    max_speed = speed;
+                }   
+            }
+        }
 
         // Loop over a slightly smaller grid to avoid drawing on the boundaries
         for j in 1..self.ny - 1 {
             for i in 1..self.nx - 1 {
-                // Calculate the center of the cell
-                let x = (i as f64 + 0.5) * self.dx;
+                let x = (i as f64 + 0.5) * self.dx; 
                 let y = (j as f64 + 0.5) * self.dx;
-
-                // Get the velocity at that point
                 let (u, v) = self.get_velocity(x, y);
+                let speed = (u * u + v * v).sqrt();
+                let color = Self::speed_to_color(speed, max_speed);
+                let line = line::Line::new(color, 3.0);
 
-                // Calculate the start and end points of the arrow
                 let x2 = x + u * scale;
                 let y2 = y + v * scale;
 
-                // Draw the line
                 line.draw([x, y, x2, y2], &c.draw_state, c.transform, g);
             }
         }
