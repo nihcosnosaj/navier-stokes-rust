@@ -399,7 +399,11 @@ fn main() {
     let idx = grid.v_idx(center_i, center_j);
     grid.v[idx] = 100.0;
 
-    let mut window: PistonWindow = WindowSettings::new("Fluid Sim", [600, 600]).exit_on_esc(true).build().unwrap();
+    let mut window: PistonWindow = WindowSettings::new("Fluid Sim", [600, 600])
+        .exit_on_esc(true)
+        .resizable(true)
+        .build()
+        .unwrap();
 
     let mut show_speed = false;
     let mut mouse_down = false;
@@ -408,6 +412,14 @@ fn main() {
     while let Some(event) = window.next() {
         if let Some(Button::Keyboard(Key::C)) = event.press_args() {
             show_speed = !show_speed;
+        }
+        if let Some(Button::Keyboard(Key::R)) = event.press_args() {
+            grid = FluidGrid::new(40, 40, 15.0); // Reset the grid to initial state.
+            // Optionally, re-initialize any initial conditions here
+            let center_i = grid.nx / 2;
+            let center_j = grid.ny / 2;
+            let idx = grid.v_idx(center_i, center_j);
+            grid.v[idx] = 100.0;
         }
         if let Some(Button::Mouse(MouseButton::Left)) = event.press_args() {
             mouse_down = true;
