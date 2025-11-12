@@ -289,7 +289,53 @@ impl FluidGrid {
         [r as f32, g as f32, b as f32, 1.0]
     }
 
-    pub fn run_step(&mut self, dt: f64) {
+    fn diffuse_velocity(&mut self, viscosity: f64, dt: f64) {
+        if viscosity == 0.0 {
+            return;
+        }
+        let nx = self.nx;
+        let ny = self.ny;
+        let dx = self.dx;
+        let a = viscosity * dt / (dx * dx);
+        let iterations = 20;
+
+        // Diffuse u
+        let mut u_new = self.u.clone();
+        for _ in 0..iterations {
+            for j in 1..ny - 1 {
+                for i in 1..nx {
+                    let idx = self.u_idx(i,j);
+                    let idx_l = self.u_idx(i - 1, j);
+                    let idx_r = self.u_idx(i+ 1, j);
+                    let idx_b = self.u_idx(i, j - 1);
+                    let idx_t = self.u_idx(i, j + 1);
+                    u_new[idx] = (self.u[idx] + a * (u_new[idx_l] + u_new[idx_r] + u_new[idx_b] + u_new[idx_t]))
+                        / (1.0 + 4.0 * a);
+                }
+            }
+        }
+        self.u = u_new;
+
+        // Diffuse v
+        let mut v_new = self.v.clone();
+        for _ in 0..iterations {
+            for j in 1..ny {
+                for i in 1..nx - 1 {
+                    let idx = self.v_idx(i, j);
+                    let idx_l = self.v_idx(i - 1, j);
+                    let idx_r = self.v_idx(i + 1, j);
+                    let idx_b = self.v_idx(i, j - 1);
+                    let idx_t = self.v_idx(i, j + 1);
+                    v_new[idx] = (self.v[idx] + a * (v_new[idx_l] + v_new[idx_r] + v_new[idx_b] + v_new[idx_t]))
+                        / (1.0 + 4.0 * a);
+                }
+            }
+        }
+        self.v = v_new;
+    }
+
+    pub fn run_step(&mut self, dt: f64, viscosity: f64) {
+        self.diffuse_velocity(viscosity, dt);
         self.advect(dt);
         self.solve_pressure(dt);
         self.project(dt);
@@ -399,6 +445,8 @@ fn main() {
     let idx = grid.v_idx(center_i, center_j);
     grid.v[idx] = 100.0;
 
+    let mut viscosity: f64 = 0.0;
+
     let mut window: PistonWindow = WindowSettings::new("Fluid Sim", [600, 600])
         .exit_on_esc(true)
         .resizable(true)
@@ -427,6 +475,12 @@ fn main() {
         if let Some(Button::Mouse(MouseButton::Left)) = event.release_args() {
             mouse_down = false;
         }
+        if let Some(Button::Keyboard(Key::Right)) = event.press_args() {
+            viscosity = (viscosity + 0.01).min(1.0_f64);
+        }
+        if let Some(Button::Keyboard(Key::Left)) = event.press_args() {
+            viscosity = (viscosity - 0.01).max(0.0_f64);
+        }
         if let Some([x, y]) = event.mouse_cursor_args() {
             if mouse_down {
                 // Inject velocity based on mouse movement
@@ -437,7 +491,7 @@ fn main() {
             last_mouse_pos = [x, y];
         }
         if let Some(_args) = event.update_args() {
-            grid.run_step(0.016); // Run one step (for ~60 FPS)
+            grid.run_step(0.016, viscosity); // Run one step (for ~60 FPS)
         }
 
         window.draw_2d(&event, |context, graphics, _device| {
