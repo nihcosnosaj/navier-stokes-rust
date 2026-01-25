@@ -1,7 +1,5 @@
 # navier-stokes-rust
 
-![Rust](https://github.com/jasonsochin/navier-stokes-rust/.github/workflows/rust.yml/badge.svg)
-
 ## Introduction
 
 This project is a 2D fluid dynamics simulation built from the ground up in Rust. It solves the incompressible Navier-Stokes equations on a grid to simulate the motion of viscous fluids. It is part of my attempt to learn the Rust programming language.
