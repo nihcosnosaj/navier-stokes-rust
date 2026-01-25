@@ -1,6 +1,6 @@
 # navier-stokes-rust
 
-![Rust](https://github.com/jasonsochin/navier-stokes-rust/actions/workflows/rust.yml/badge.svg)
+![Rust](https://github.com/jasonsochin/navier-stokes-rust/.github/workflows/rust.yml/badge.svg)
 
 ## Introduction
 
