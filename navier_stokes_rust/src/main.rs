@@ -14,6 +14,7 @@ fn main() {
     grid.v[idx] = 100.0;
 
     let mut viscosity: f64 = 0.0;
+    let mut vorticity_strength: f64 = 5.0; // Default strength
 
     let mut window: PistonWindow = WindowSettings::new("Fluid Sim", [600, 600])
         .exit_on_esc(true)
@@ -49,6 +50,12 @@ fn main() {
         if let Some(Button::Keyboard(Key::Left)) = event.press_args() {
             viscosity = (viscosity - 0.01).max(0.0_f64);
         }
+        if let Some(Button::Keyboard(Key::Up)) = event.press_args() {
+            vorticity_strength += 1.0;
+        }
+        if let Some(Button::Keyboard(Key::Down)) = event.press_args() {
+            vorticity_strength = (vorticity_strength - 1.0).max(0.0);
+        }
         if let Some([x, y]) = event.mouse_cursor_args() {
             if mouse_down {
                 // Inject velocity based on mouse movement
@@ -59,7 +66,7 @@ fn main() {
             last_mouse_pos = [x, y];
         }
         if let Some(_args) = event.update_args() {
-            grid.run_step(0.016, viscosity);
+            grid.run_step(0.016, viscosity, vorticity_strength);
         }
 
         window.draw_2d(&event, |context, graphics, _device| {

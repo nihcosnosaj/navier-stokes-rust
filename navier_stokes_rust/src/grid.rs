@@ -25,6 +25,9 @@ pub struct FluidGrid {
 
     // Scratch space for divergence to avoid allocation in loop
     divergence: Vec<f64>,
+
+    // Scratch space for vorticity (stored at cell corners)
+    vorticity: Vec<f64>,
 }
 
 impl FluidGrid {
@@ -41,6 +44,7 @@ impl FluidGrid {
             v: vec![0.0; nx * (ny + 1)],
             v_prev: vec![0.0; nx * (ny + 1)],
             divergence: vec![0.0; nx * ny],
+            vorticity: vec![0.0; (nx + 1) * (ny + 1)],
         }
     }
 
@@ -261,6 +265,71 @@ impl FluidGrid {
    
     }
 
+    fn apply_vorticity_confinement(&mut self, dt: f64, vorticity_strength: f64) {
+        let nx = self.nx;
+        let ny = self.ny;
+        let dx = self.dx;
+
+        // 1. Calculate vorticity at corners (i, j)
+        // Vorticity is defined as dv/dx - du/dy
+        // We compute this at the corners of the cells.
+        for j in 1..ny {
+            for i in 1..nx {
+                let v_c = self.v[self.v_idx(i, j)];     // v at (i+0.5, j)
+                let v_l = self.v[self.v_idx(i - 1, j)]; // v at (i-0.5, j)
+                let u_c = self.u[self.u_idx(i, j)];     // u at (i, j+0.5)
+                let u_b = self.u[self.u_idx(i, j - 1)]; // u at (i, j-0.5)
+
+                let curl = (v_c - v_l) / dx - (u_c - u_b) / dx;
+                self.vorticity[j * (nx + 1) + i] = curl;
+            }
+        }
+
+        // 2. Apply confinement force
+        // We calculate the gradient of the absolute vorticity to determine the direction N.
+        // Force = epsilon * dx * (N x omega)
+        for j in 2..ny - 1 {
+            for i in 2..nx - 1 {
+                let idx = j * (nx + 1) + i;
+                let curl = self.vorticity[idx];
+                let abs_curl = curl.abs();
+
+                // Central difference for gradient of |curl|
+                let dw_dx = (self.vorticity[j * (nx + 1) + (i + 1)].abs()
+                    - self.vorticity[j * (nx + 1) + (i - 1)].abs())
+                    / (2.0 * dx);
+                let dw_dy = (self.vorticity[(j + 1) * (nx + 1) + i].abs()
+                    - self.vorticity[(j - 1) * (nx + 1) + i].abs())
+                    / (2.0 * dx);
+
+                let len = (dw_dx * dw_dx + dw_dy * dw_dy).sqrt();
+
+                // Avoid divide by zero
+                if len > 1e-5 {
+                    let nx = dw_dx / len;
+                    let ny = dw_dy / len;
+
+                    // F = strength * dx * (N x curl_vec)
+                    // In 2D: N = (nx, ny), curl_vec = (0, 0, curl)
+                    // Cross product: (ny * curl, -nx * curl)
+                    let fx = vorticity_strength * dx * ny * curl;
+                    let fy = vorticity_strength * dx * -nx * curl;
+
+                    // Add force to velocity fields (simple distribution to nearest faces)
+                    // u is at (i, j+0.5), v is at (i+0.5, j).
+                    // The corner (i,j) is adjacent to u(i,j), u(i,j-1), v(i,j), v(i-1,j).
+                    // For simplicity in this grid, we apply to the primary faces for this corner index.
+                    // A more accurate approach would distribute to all 4 neighbors.
+                    let u_idx = self.u_idx(i, j);
+                    self.u[u_idx] += fx * dt;
+
+                    let v_idx = self.v_idx(i, j);
+                    self.v[v_idx] += fy * dt;
+                }
+            }
+        }
+    }
+
     fn set_boundaries(&mut self) {
         // --- Vertical Walls (Left and Right) ---
         // Set u-velocity to 0 on the left and right walls.
@@ -331,7 +400,8 @@ impl FluidGrid {
         }
     }
 
-    pub fn run_step(&mut self, dt: f64, viscosity: f64) {
+    pub fn run_step(&mut self, dt: f64, viscosity: f64, vorticity_strength: f64) {
+        self.apply_vorticity_confinement(dt, vorticity_strength);
         self.diffuse_velocity(viscosity, dt);
         self.advect(dt);
         self.solve_pressure(dt);
