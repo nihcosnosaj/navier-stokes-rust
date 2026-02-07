@@ -71,103 +71,170 @@ impl FluidGrid {
     }
 
     pub fn get_velocity(&self, x: f64, y: f64) -> (f64, f64) {
-        // Clamp position to be within the grid
-    let x = x.max(0.0).min((self.nx as f64) * self.dx);
-    let y = y.max(0.0).min((self.ny as f64) * self.dx);
+        let u = self.sample_u(x, y);
+        let v = self.sample_v(x, y);
+        (u, v)
+    }
 
-        // --- Interpolate U-velocity ---
-        // Find bottom-left u-velocity index and interpolation weights
-        let u_i = (x / self.dx).floor() as usize;
-        let u_j = ((y / self.dx) - 0.5).floor() as usize;
-        let u_tx = (x / self.dx) - u_i as f64;
-        let u_ty = (y / self.dx - 0.5) - u_j as f64;
+    fn sample_u(&self, x: f64, y: f64) -> f64 {
+        let x = x.max(0.0).min((self.nx as f64) * self.dx);
+        let y = y.max(0.5 * self.dx).min((self.ny as f64 - 0.5) * self.dx);
 
-        // Get the four surrounding u-velocities
-        let u00 = self.u[self.u_idx(u_i.min(self.nx-1), u_j.min(self.ny-1))];
-        let u10 = self.u[self.u_idx((u_i + 1).min(self.nx-1), u_j.min(self.ny-1))];
-        let u01 = self.u[self.u_idx(u_i.min(self.nx-1), (u_j + 1).min(self.ny-1))];
-        let u11 = self.u[self.u_idx((u_i + 1).min(self.nx-1), (u_j + 1).min(self.ny-1))];
+        let i = (x / self.dx).floor() as usize;
+        let j = ((y / self.dx) - 0.5).floor() as usize;
+        
+        let tx = (x / self.dx) - i as f64;
+        let ty = (y / self.dx - 0.5) - j as f64;
 
-        // Perform bilinear interpolation for u
-        let u_interp = u00 * (1.0 - u_tx) * (1.0 - u_ty)
-                     + u10 * u_tx * (1.0 - u_ty)
-                     + u01 * (1.0 - u_tx) * u_ty
-                     + u11 * u_tx * u_ty;
+        let i0 = i.min(self.nx);
+        let i1 = (i + 1).min(self.nx);
+        let j0 = j.min(self.ny - 1);
+        let j1 = (j + 1).min(self.ny - 1);
 
-        // --- Interpolate V-velocity ---
-        // Find bottom-left v-velocity index and interpolation weights
-        let v_i = ((x / self.dx) - 0.5).floor() as usize;
-        let v_j = (y / self.dx).floor() as usize;
-        let v_tx = (x / self.dx - 0.5) - v_i as f64;
-        let v_ty = (y / self.dx) - v_j as f64;
+        let v00 = self.u[self.u_idx(i0, j0)];
+        let v10 = self.u[self.u_idx(i1, j0)];
+        let v01 = self.u[self.u_idx(i0, j1)];
+        let v11 = self.u[self.u_idx(i1, j1)];
 
-        // Get the four surrounding v-velocities
-        let v00 = self.v[self.v_idx(v_i.min(self.nx-1), v_j.min(self.ny-1))];
-        let v10 = self.v[self.v_idx((v_i + 1).min(self.nx-1), v_j.min(self.ny-1))];
-        let v01 = self.v[self.v_idx(v_i.min(self.nx-1), (v_j + 1).min(self.ny-1))];
-        let v11 = self.v[self.v_idx((v_i + 1).min(self.nx-1), (v_j + 1).min(self.ny-1))];
+        v00 * (1.0 - tx) * (1.0 - ty) + v10 * tx * (1.0 - ty) + v01 * (1.0 - tx) * ty + v11 * tx * ty
+    }
 
-        // Perform bilinear interpolation for v
-        let v_interp = v00 * (1.0 - v_tx) * (1.0 - v_ty)
-                     + v10 * v_tx * (1.0 - v_ty)
-                     + v01 * (1.0 - v_tx) * v_ty
-                     + v11 * v_tx * v_ty;
+    fn sample_v(&self, x: f64, y: f64) -> f64 {
+        let x = x.max(0.5 * self.dx).min((self.nx as f64 - 0.5) * self.dx);
+        let y = y.max(0.0).min((self.ny as f64) * self.dx);
 
-        (u_interp, v_interp)
+        let i = ((x / self.dx) - 0.5).floor() as usize;
+        let j = (y / self.dx).floor() as usize;
+
+        let tx = (x / self.dx - 0.5) - i as f64;
+        let ty = (y / self.dx) - j as f64;
+
+        let i0 = i.min(self.nx - 1);
+        let i1 = (i + 1).min(self.nx - 1);
+        let j0 = j.min(self.ny);
+        let j1 = (j + 1).min(self.ny);
+
+        let v00 = self.v[self.v_idx(i0, j0)];
+        let v10 = self.v[self.v_idx(i1, j0)];
+        let v01 = self.v[self.v_idx(i0, j1)];
+        let v11 = self.v[self.v_idx(i1, j1)];
+
+        v00 * (1.0 - tx) * (1.0 - ty) + v10 * tx * (1.0 - ty) + v01 * (1.0 - tx) * ty + v11 * tx * ty
+    }
+
+    /// Helper for Clamped BFECC: Returns (interpolated_value, min_neighbor, max_neighbor)
+    fn sample_u_with_bounds(&self, x: f64, y: f64) -> (f64, f64, f64) {
+        let x = x.max(0.0).min((self.nx as f64) * self.dx);
+        let y = y.max(0.5 * self.dx).min((self.ny as f64 - 0.5) * self.dx);
+
+        let i = (x / self.dx).floor() as usize;
+        let j = ((y / self.dx) - 0.5).floor() as usize;
+
+        let i0 = i.min(self.nx);
+        let i1 = (i + 1).min(self.nx);
+        let j0 = j.min(self.ny - 1);
+        let j1 = (j + 1).min(self.ny - 1);
+
+        let v00 = self.u[self.u_idx(i0, j0)];
+        let v10 = self.u[self.u_idx(i1, j0)];
+        let v01 = self.u[self.u_idx(i0, j1)];
+        let v11 = self.u[self.u_idx(i1, j1)];
+
+        let tx = (x / self.dx) - i as f64;
+        let ty = (y / self.dx - 0.5) - j as f64;
+
+        let interp = v00 * (1.0 - tx) * (1.0 - ty) + v10 * tx * (1.0 - ty) + v01 * (1.0 - tx) * ty + v11 * tx * ty;
+        let min_v = v00.min(v10).min(v01).min(v11);
+        let max_v = v00.max(v10).max(v01).max(v11);
+
+        (interp, min_v, max_v)
+    }
+
+    fn sample_v_with_bounds(&self, x: f64, y: f64) -> (f64, f64, f64) {
+        let x = x.max(0.5 * self.dx).min((self.nx as f64 - 0.5) * self.dx);
+        let y = y.max(0.0).min((self.ny as f64) * self.dx);
+
+        let i = ((x / self.dx) - 0.5).floor() as usize;
+        let j = (y / self.dx).floor() as usize;
+
+        let i0 = i.min(self.nx - 1);
+        let i1 = (i + 1).min(self.nx - 1);
+        let j0 = j.min(self.ny);
+        let j1 = (j + 1).min(self.ny);
+
+        let v00 = self.v[self.v_idx(i0, j0)];
+        let v10 = self.v[self.v_idx(i1, j0)];
+        let v01 = self.v[self.v_idx(i0, j1)];
+        let v11 = self.v[self.v_idx(i1, j1)];
+
+        let tx = (x / self.dx - 0.5) - i as f64;
+        let ty = (y / self.dx) - j as f64;
+
+        let interp = v00 * (1.0 - tx) * (1.0 - ty) + v10 * tx * (1.0 - ty) + v01 * (1.0 - tx) * ty + v11 * tx * ty;
+        let min_v = v00.min(v10).min(v01).min(v11);
+        let max_v = v00.max(v10).max(v01).max(v11);
+
+        (interp, min_v, max_v)
     }
 
 
-    // Step 1: Advection
-    // Moves the velocity field along itself.
+    // --- Step 1: Advection (Clamped BFECC) ---
     fn advect(&mut self, dt: f64) {
-        // Copy current state to prev buffers to ensure boundaries are preserved
-        // if we skip them in the loop.
         self.u_prev.copy_from_slice(&self.u);
         self.v_prev.copy_from_slice(&self.v);
 
-        // Advect u-velocity components (excluding boundaries for simplicity)
+        // Advect U
         for j in 0..self.ny {
             for i in 1..self.nx {
-                // Find the real-world position (x,y) of this u-velocity component
                 let x = i as f64 * self.dx;
                 let y = (j as f64 + 0.5) * self.dx;
-
-                // Get the velocity at this exact point
                 let (u, v) = self.get_velocity(x, y);
 
-                // Trace back in time to find the source position
-                let x_prev = x - dt * u;
-                let y_prev = y - dt * v;
+                // Forward Trace
+                let x_fwd = x - dt * u;
+                let y_fwd = y - dt * v;
+                let (u_star, u_min, u_max) = self.sample_u_with_bounds(x_fwd, y_fwd);
 
-                // Get the advected velocity by interpolating at the source position
-                let (u_advected, _) = self.get_velocity(x_prev, y_prev);
+                // Backward Trace
+                let (u_f, v_f) = self.get_velocity(x_fwd, y_fwd);
+                let x_back = x_fwd + dt * u_f;
+                let y_back = y_fwd + dt * v_f;
+                let (u_double_star, _, _) = self.sample_u_with_bounds(x_back, y_back);
+
+                // Correction + Clamp
                 let idx = self.u_idx(i, j);
-                self.u_prev[idx] = u_advected;
+                let u_orig = self.u[idx];
+                let u_corrected = u_star + 0.5 * (u_orig - u_double_star);
+                self.u_prev[idx] = u_corrected.clamp(u_min, u_max);
             }
         }
 
-        // Advect v-velocity components (excluding boundaries for simplicity)
+        // Advect V
         for j in 1..self.ny {
             for i in 0..self.nx {
-                // Find the real-world position (x,y) of this v-velocity component
                 let x = (i as f64 + 0.5) * self.dx;
                 let y = j as f64 * self.dx;
-
-                // Get the velocity at this exact point
                 let (u, v) = self.get_velocity(x, y);
 
-                // Trace back in time to find the source position
-                let x_prev = x - dt * u;
-                let y_prev = y - dt * v;
+                // Forward Trace
+                let x_fwd = x - dt * u;
+                let y_fwd = y - dt * v;
+                let (v_star, v_min, v_max) = self.sample_v_with_bounds(x_fwd, y_fwd);
 
-                // Get the advected velocity by interpolating at the source position
-                let (_, v_advected) = self.get_velocity(x_prev, y_prev);
+                // Backward Trace
+                let (u_f, v_f) = self.get_velocity(x_fwd, y_fwd);
+                let x_back = x_fwd + dt * u_f;
+                let y_back = y_fwd + dt * v_f;
+                let (v_double_star, _, _) = self.sample_v_with_bounds(x_back, y_back);
+
+                // Correction + Clamp
                 let idx = self.v_idx(i, j);
-                self.v_prev[idx] = v_advected;
+                let v_orig = self.v[idx];
+                let v_corrected = v_star + 0.5 * (v_orig - v_double_star);
+                self.v_prev[idx] = v_corrected.clamp(v_min, v_max);
             }
         }
 
-        // Update the grid's velocity fields
         mem::swap(&mut self.u, &mut self.u_prev);
         mem::swap(&mut self.v, &mut self.v_prev);
     }
