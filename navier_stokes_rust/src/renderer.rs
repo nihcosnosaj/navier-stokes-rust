@@ -23,6 +23,37 @@ impl FluidRenderer {
         [r as f32, g as f32, b as f32, 1.0]
     }
 
+    /// Renders the density field as grayscale "smoke"
+    pub fn draw_density(grid: &FluidGrid, c: &Context, g: &mut G2d) {
+        // Find max density for normalization (prevents wash-out)
+        let mut max_d = 0.01;
+        for &d in &grid.density {
+            if d > max_d { max_d = d; }
+        }
+
+        for j in 0..grid.ny {
+            for i in 0..grid.nx {
+                let x = (i as f64) * grid.dx;
+                let y = (j as f64) * grid.dx;
+                
+                // Fetch density from cell center
+                let d = grid.density[j * grid.nx + i];
+                
+                // Map density to white/gray brightness
+                // A common trick is to use (1.0 - exp(-d)) for a more "gaseous" look
+                let val = (d / max_d).min(1.0) as f32;
+                let color = [val, val, val, 1.0];
+
+                rectangle(
+                    color,
+                    [x, y, grid.dx, grid.dx],
+                    c.transform,
+                    g,
+                );
+            }
+        }
+    }
+
     pub fn draw_velocities(grid: &FluidGrid, c: &Context, g: &mut G2d) {
         // Bright yellow, 3px thick
         // let line = line::Line::new([1.0, 1.0, 0.0, 1.0], 3.0);

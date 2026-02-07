@@ -22,13 +22,14 @@ fn main() {
         .build()
         .unwrap();
 
+    let mut render_mode = 0;
     let mut show_speed = false;
     let mut mouse_down = false;
     let mut last_mouse_pos = [0.0, 0.0];
 
     while let Some(event) = window.next() {
         if let Some(Button::Keyboard(Key::C)) = event.press_args() {
-            show_speed = !show_speed;
+            render_mode = (render_mode + 1) % 3;
         }
         if let Some(Button::Keyboard(Key::R)) = event.press_args() {
             grid = FluidGrid::new(40, 40, 15.0); // Reset the grid to initial state.
@@ -62,21 +63,33 @@ fn main() {
                 let dx = x - last_mouse_pos[0];
                 let dy = y - last_mouse_pos[1];
                 grid.add_velocity_at_pixel(x, y, dx, dy);
+
+                // inject density
+                let i = (x / grid.dx) as usize;
+                let j = (y / grid.dx) as usize;
+                grid.add_density(i, j, 10.0);
             }
             last_mouse_pos = [x, y];
         }
-        if let Some(_args) = event.update_args() {
-            grid.run_step(0.016, viscosity, vorticity_strength);
+        if let Some(args) = event.update_args() {
+            let dt = args.dt;
+            let sub_steps = 4;
+            let sub_dt = dt / (sub_steps as f64);
+
+            for _ in 0..sub_steps {
+                grid.run_step(sub_dt, viscosity, vorticity_strength);
+            }
         }
 
         window.draw_2d(&event, |context, graphics, _device| {
-            clear([0.1, 0.1, 0.1, 1.0], graphics); // Clear to dark gray
+            clear([0.05, 0.05, 0.05, 1.0], graphics); // Clear to dark gray
 
             // We'll create and call our drawing function here
-            if show_speed {
-                FluidRenderer::draw_speed(&grid, &context, graphics);
-            } else {
-                FluidRenderer::draw_velocities(&grid, &context, graphics);
+            match render_mode {
+                0 => FluidRenderer::draw_velocities(&grid, &context, graphics),
+                1 => FluidRenderer::draw_speed(&grid, &context, graphics),
+                2 => FluidRenderer::draw_density(&grid, &context, graphics),
+                _ => {}
             }
         });
     }

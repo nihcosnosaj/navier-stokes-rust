@@ -28,6 +28,8 @@ pub struct FluidGrid {
 
     // Scratch space for vorticity (stored at cell corners)
     vorticity: Vec<f64>,
+    pub density: Vec<f64>,
+    pub density_prev: Vec<f64>,
 }
 
 impl FluidGrid {
@@ -45,7 +47,14 @@ impl FluidGrid {
             v_prev: vec![0.0; nx * (ny + 1)],
             divergence: vec![0.0; nx * ny],
             vorticity: vec![0.0; (nx + 1) * (ny + 1)],
+            density: vec![0.0; nx * ny],
+            density_prev: vec![0.0; nx * ny],
         }
+    }
+
+    pub fn add_density(&mut self, i: usize, j: usize, amount: f64) {
+        let idx = self.p_idx(i, j);
+        self.density[idx] += amount;
     }
 
     // A function to apply velocity decay.
@@ -177,11 +186,31 @@ impl FluidGrid {
         (interp, min_v, max_v)
     }
 
+    fn sample_density_with_bounds(&self, x: f64, y: f64) -> (f64, f64, f64) {
+        let x = x.max(0.5 * self.dx).min((self.nx as f64 - 0.5) * self.dx);
+        let y = y.max(0.5 * self.dx).min((self.ny as f64 - 0.5) * self.dx);
+
+        let i = ((x / self.dx) - 0.5).floor() as usize;
+        let j = ((y / self.dx) - 0.5).floor() as usize;
+
+        let tx = (x / self.dx - 0.5) - i as f64;
+        let ty = (y / self.dx - 0.5) - j as f64;
+
+        let i0 = i.min(self.nx - 1); let i1 = (i + 1).min(self.nx - 1);
+        let j0 = j.min(self.ny - 1); let j1 = (j + 1).min(self.ny - 1);
+
+        let d00 = self.density[self.p_idx(i0, j0)]; let d10 = self.density[self.p_idx(i1, j0)];
+        let d01 = self.density[self.p_idx(i0, j1)]; let d11 = self.density[self.p_idx(i1, j1)];
+        let interp = d00 * (1.0 - tx) * (1.0 - ty) + d10 * tx * (1.0 - ty) + d01 * (1.0 - tx) * ty + d11 * tx * ty;
+        (interp, d00.min(d10).min(d01).min(d11), d00.max(d10).max(d01).max(d11))
+    }
+
 
     // --- Step 1: Advection (Clamped BFECC) ---
     fn advect(&mut self, dt: f64) {
         self.u_prev.copy_from_slice(&self.u);
         self.v_prev.copy_from_slice(&self.v);
+        self.density_prev.copy_from_slice(&self.density);
 
         // Advect U
         for j in 0..self.ny {
@@ -234,9 +263,27 @@ impl FluidGrid {
                 self.v_prev[idx] = v_corrected.clamp(v_min, v_max);
             }
         }
+    
+        // Advect Density 
+        for j in 0..self.ny {
+            for i in 0..self.nx {
+                let x = (i as f64 + 0.5) * self.dx;
+                let y = (j as f64 + 0.5) * self.dx;
+                let (u, v) = self.get_velocity(x, y);
+                let x_fwd = x - dt * u; let y_fwd = y - dt * v;
+                let (d_star, d_min, d_max) = self.sample_density_with_bounds(x_fwd, y_fwd);
+                let (uf, vf) = self.get_velocity(x_fwd, y_fwd);
+                let x_back = x_fwd + dt * uf; let y_back = y_fwd + dt * vf;
+                let (d_double_star, _, _) = self.sample_density_with_bounds(x_back, y_back);
+                let idx = self.p_idx(i, j);
+                let d_corrected = d_star + 0.5 * (self.density[idx] - d_double_star);
+                self.density_prev[idx] = d_corrected.clamp(d_min, d_max);
+            }
+        }
 
         mem::swap(&mut self.u, &mut self.u_prev);
         mem::swap(&mut self.v, &mut self.v_prev);
+        mem::swap(&mut self.density, &mut self.density_prev);
     }
 
     #[inline]
@@ -270,7 +317,7 @@ impl FluidGrid {
         // We repeat this loop to let the pressure values settle.
         // Copy current p to p_prev to start with a good guess
         self.p_prev.copy_from_slice(&self.p);
-        let num_iterations = 50; // More iterations = more accuracy
+        let num_iterations = 80; // More iterations = more accuracy
         for _ in 0..num_iterations {
             for j in 1..self.ny - 1 { // We only solve for interior pressure points
                 for i in 1..self.nx - 1 {
